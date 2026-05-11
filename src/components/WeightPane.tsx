@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useEffect, useTransition, useMemo } from "react";
-import { IconScale, IconTrendingDown, IconPlus, IconChartLine } from "@tabler/icons-react";
+import { IconScale, IconTrendingDown, IconPlus, IconChartLine, IconEdit, IconCheck } from "@tabler/icons-react";
 import { motion } from "framer-motion";
 import { getTodayStr } from "@/lib/utils";
-import { getWeightEntries, addWeightEntry, deleteWeightEntry, type WeightEntry } from "@/actions";
+import { type WeightEntry } from "@/actions";
+import { getOfflineWeightEntries, addOfflineWeightEntry, deleteOfflineWeightEntry } from "@/lib/store";
 import SwipeToDelete from "./SwipeToDelete";
 import { 
   AreaChart, 
@@ -16,26 +17,45 @@ import {
   ResponsiveContainer 
 } from "recharts";
 
-const START_WEIGHT = 98.0;
-const TARGET_WEIGHT = 78.0;
-const GOAL_LOSS = START_WEIGHT - TARGET_WEIGHT; // 20kg
-
 export default function WeightPane() {
   const [entries, setEntries] = useState<WeightEntry[]>([]);
   const [inputVal, setInputVal] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isPending, startTransition] = useTransition();
+  
+  const [startWeight, setStartWeight] = useState(98.0);
+  const [targetWeight, setTargetWeight] = useState(78.0);
+  const [isEditingGoals, setIsEditingGoals] = useState(false);
+  const [tempStart, setTempStart] = useState(98.0);
+  const [tempTarget, setTempTarget] = useState(78.0);
 
   useEffect(() => {
-    getWeightEntries().then((data) => {
+    getOfflineWeightEntries().then((data) => {
       setEntries(data);
       setIsLoading(false);
     });
+
+    const saved = localStorage.getItem("beast_weight_goals");
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed.start) { setStartWeight(parsed.start); setTempStart(parsed.start); }
+        if (parsed.target) { setTargetWeight(parsed.target); setTempTarget(parsed.target); }
+      } catch { }
+    }
   }, []);
 
-  const current = entries.length > 0 ? entries[0].value : START_WEIGHT;
-  const lost = Math.max(0, START_WEIGHT - current);
-  const progress = Math.max(0, Math.min(100, (lost / GOAL_LOSS) * 100));
+  const saveGoals = () => {
+    setStartWeight(tempStart);
+    setTargetWeight(tempTarget);
+    localStorage.setItem("beast_weight_goals", JSON.stringify({ start: tempStart, target: tempTarget }));
+    setIsEditingGoals(false);
+  };
+
+  const current = entries.length > 0 ? entries[0].value : startWeight;
+  const lost = Math.max(0, startWeight - current);
+  const goalLoss = startWeight - targetWeight;
+  const progress = goalLoss > 0 ? Math.max(0, Math.min(100, (lost / goalLoss) * 100)) : 0;
 
   // Prepare chart data (chronological order)
   const chartData = useMemo(() => {
@@ -61,14 +81,14 @@ export default function WeightPane() {
     setInputVal("");
 
     startTransition(() => {
-      addWeightEntry(today, val);
+      addOfflineWeightEntry(today, val);
     });
   };
 
   const handleDelete = (id: number) => {
     setEntries((prev) => prev.filter((e) => e.id !== id));
     startTransition(() => {
-      deleteWeightEntry(id);
+      deleteOfflineWeightEntry(id);
     });
   };
 
@@ -76,8 +96,13 @@ export default function WeightPane() {
     <div className="flex flex-col gap-6 pt-4">
       {/* 1. Hero Card */}
       <div className="rounded-3xl p-6 relative overflow-hidden bg-blue text-white shadow-[0_16px_32px_var(--blue-glow)]">
-        <div className="text-[11px] font-bold uppercase tracking-[1.5px] flex items-center gap-1.5 mb-3 opacity-80">
-          <IconScale size={14} /> WEIGHT TRACKER
+        <div className="text-[11px] font-bold uppercase tracking-[1.5px] flex items-center justify-between mb-3">
+          <div className="flex items-center gap-1.5 opacity-80"><IconScale size={14} /> WEIGHT TRACKER</div>
+          {!isEditingGoals ? (
+            <button onClick={() => setIsEditingGoals(true)} className="opacity-50 hover:opacity-100 transition-opacity"><IconEdit size={16} /></button>
+          ) : (
+            <button onClick={saveGoals} className="text-green-300 opacity-100 transition-opacity bg-white/20 rounded-full p-1"><IconCheck size={14} /></button>
+          )}
         </div>
 
         <div className="flex items-end gap-3 mb-6">
@@ -89,16 +114,24 @@ export default function WeightPane() {
 
         <div className="flex justify-between border-t border-white/20 pt-5">
           <div className="flex flex-col">
-            <span className="text-[9px] font-semibold uppercase tracking-widest opacity-70 mb-1">LOST</span>
-            <span className="font-extrabold text-2xl">{lost.toFixed(1)} <span className="text-sm font-medium opacity-70">kg</span></span>
+            <span className="text-[9px] font-semibold uppercase tracking-widest opacity-70 mb-1">START</span>
+            {isEditingGoals ? (
+              <input type="number" value={tempStart || ""} onChange={(e) => setTempStart(parseFloat(e.target.value))} className="w-16 bg-white/10 rounded px-1 py-0.5 text-xl font-bold outline-none border-b border-white/50" />
+            ) : (
+              <span className="font-extrabold text-2xl">{startWeight} <span className="text-sm font-medium opacity-70">kg</span></span>
+            )}
           </div>
           <div className="flex flex-col">
             <span className="text-[9px] font-semibold uppercase tracking-widest opacity-70 mb-1">TARGET</span>
-            <span className="font-extrabold text-2xl">{TARGET_WEIGHT} <span className="text-sm font-medium opacity-70">kg</span></span>
+            {isEditingGoals ? (
+              <input type="number" value={tempTarget || ""} onChange={(e) => setTempTarget(parseFloat(e.target.value))} className="w-16 bg-white/10 rounded px-1 py-0.5 text-xl font-bold outline-none border-b border-white/50" />
+            ) : (
+              <span className="font-extrabold text-2xl">{targetWeight} <span className="text-sm font-medium opacity-70">kg</span></span>
+            )}
           </div>
           <div className="flex flex-col">
-            <span className="text-[9px] font-semibold uppercase tracking-widest opacity-70 mb-1">LOGGED</span>
-            <span className="font-extrabold text-2xl">{entries.length}</span>
+            <span className="text-[9px] font-semibold uppercase tracking-widest opacity-70 mb-1">LOST</span>
+            <span className="font-extrabold text-2xl">{lost.toFixed(1)} <span className="text-sm font-medium opacity-70">kg</span></span>
           </div>
         </div>
       </div>
@@ -129,7 +162,7 @@ export default function WeightPane() {
             <IconTrendingDown size={14} /> PROGRESS
           </div>
           <span className="text-[12px] font-semibold text-text-muted">
-            {Math.round(progress)}% of {GOAL_LOSS}kg goal
+            {Math.round(progress)}% of {goalLoss.toFixed(1)}kg goal
           </span>
         </div>
         <div className="w-full h-3 rounded-full bg-border overflow-hidden">

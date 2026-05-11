@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useTransition, useCallback, useMemo } from
 import { IconFlame, IconCheck, IconLoader2 } from "@tabler/icons-react";
 import { getTodayStr } from "@/lib/utils";
 import { motion } from "framer-motion";
-import { getHistory, toggleHabit as toggleHabitAction } from "@/actions";
+import { getOfflineHistory, toggleOfflineHabit } from "@/lib/store";
 import confetti from "canvas-confetti";
 
 const HABITS = [
@@ -56,7 +56,7 @@ const bentoConfig = [
   { id: "water",      spanCol: "col-span-2", spanRow: "row-span-1" }, // Wide
   { id: "phone_morn", spanCol: "col-span-1", spanRow: "row-span-1" }, // Half
   { id: "gym",        spanCol: "col-span-1", spanRow: "row-span-1" }, // Half
-  { id: "photo",      spanCol: "col-span-2", spanRow: "row-span-1" }, // Wide — moved up, was narrow + mismatched
+  { id: "photo",      spanCol: "col-span-2", spanRow: "row-span-1" }, // Wide
   { id: "rice",       spanCol: "col-span-2", spanRow: "row-span-1" }, // Wide
   { id: "phone_eve",  spanCol: "col-span-1", spanRow: "row-span-1" }, // Half
   { id: "journal",    spanCol: "col-span-1", spanRow: "row-span-1" }, // Half
@@ -71,7 +71,7 @@ export default function HabitPane() {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    getHistory().then((data) => {
+    getOfflineHistory().then((data) => {
       setHistory(data);
       setIsLoading(false);
     });
@@ -189,7 +189,7 @@ export default function HabitPane() {
     }
 
     startTransition(() => {
-      toggleHabitAction(today, id);
+      toggleOfflineHabit(today, id);
     });
   };
 
@@ -322,79 +322,78 @@ export default function HabitPane() {
             {isPending && <IconLoader2 size={14} className="animate-spin text-text-muted" />}
           </div>
         </div>
-        
-       <div className="grid grid-cols-2 gap-[10px]">
-  {isLoading ? (
-    <div className="animate-pulse col-span-2 flex flex-col gap-3">
-      {[1, 2, 3, 4].map((i) => (
-        <div key={i} className="h-[140px] rounded-2xl bg-surface border border-border" />
-      ))}
-    </div>
-  ) : (
-    HABITS.map((h, index) => {
-      const isDone = todayHistory[h.id] || todayHistory[index];
-      const config = bentoConfig[index];
-      const isWide = config.spanCol === "col-span-2";
-
-      const textClass = isWide
-        ? "text-[19px] font-extrabold leading-tight tracking-tight"
-        : "text-[14px] font-bold leading-tight tracking-tight";
-
-      return (
-        <motion.div
-          key={h.id}
-          whileTap={{ scale: 0.97 }}
-          onClick={() => toggleHabit(h.id)}
-          className={`
-            ${config.spanCol}
-            rounded-[24px] p-[18px] flex flex-col
-            cursor-pointer transition-all duration-300 border-none
-            ${isDone ? "bg-orange text-[#1A1A1A]" : "bg-surface text-text"}
-            ${isWide ? "min-h-[140px]" : "h-[110px]"}
-          `}
-        >
-          {/* Top: title + check */}
-          <div className="flex justify-between items-start gap-2 flex-1">
-            <div className={`${textClass} flex-1`}>{h.title}</div>
-            {isDone ? (
-              <motion.div
-                animate={{ scale: [0.5, 1.2, 1] }}
-                transition={{ duration: 0.3 }}
-                className="flex-shrink-0"
-              >
-                <IconCheck size={20} stroke={3} className="text-[#1A1A1A]" />
-              </motion.div>
-            ) : (
-              <div className="flex-shrink-0 w-[24px] h-[24px] rounded-full bg-white/10 flex items-center justify-center">
-                <div className="w-[5px] h-[5px] rounded-full bg-orange/60" />
-              </div>
-            )}
-          </div>
-
-          {/* Wide: description */}
-          {isWide && (
-            <div className={`text-[12px] leading-[1.4] mt-2 ${isDone ? "text-black/70" : "text-white/45"}`}>
-              {h.desc}
+        <div className="grid grid-cols-2 gap-[10px]">
+          {isLoading ? (
+            <div className="animate-pulse col-span-2 flex flex-col gap-3">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="h-[140px] rounded-2xl bg-surface border border-border" />
+              ))}
             </div>
-          )}
+          ) : (
+            HABITS.map((h, index) => {
+              const isDone = todayHistory[h.id] || todayHistory[index] || false;
+              const config = bentoConfig[index];
+              const isWide = config.spanCol === "col-span-2";
 
-          {/* Bottom: tag (wide) or status (narrow) */}
-          <div className="mt-4">
-            {isWide ? (
-              <span className={`text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-full ${isDone ? "bg-black/10 text-black/60" : "bg-white/6 text-white/40"}`}>
-                {h.tag}
-              </span>
-            ) : (
-              <span className={`text-[11px] font-semibold ${isDone ? "text-black/50" : "text-white/20"}`}>
-                {isDone ? "✓ Done" : "Tap to mark"}
-              </span>
-            )}
-          </div>
-        </motion.div>
-      );
-    })
-  )}
-</div>
+              const textClass = isWide
+                ? "text-[19px] font-extrabold leading-tight tracking-tight"
+                : "text-[14px] font-bold leading-tight tracking-tight";
+
+              return (
+                <motion.div
+                  key={h.id}
+                  whileTap={{ scale: 0.97 }}
+                  onClick={() => toggleHabit(h.id)}
+                  className={`
+                    ${config.spanCol}
+                    rounded-[24px] p-[18px] flex flex-col
+                    cursor-pointer transition-all duration-300 border-none
+                    ${isDone ? "bg-orange text-[#1A1A1A]" : "bg-surface text-text"}
+                    ${isWide ? "min-h-[140px]" : "h-[110px]"}
+                  `}
+                >
+                  {/* Top: title + check */}
+                  <div className="flex justify-between items-start gap-2 flex-1">
+                    <div className={`${textClass} flex-1`}>{h.title}</div>
+                    {isDone ? (
+                      <motion.div
+                        animate={{ scale: [0.5, 1.2, 1] }}
+                        transition={{ duration: 0.3 }}
+                        className="flex-shrink-0"
+                      >
+                        <IconCheck size={20} stroke={3} className="text-[#1A1A1A]" />
+                      </motion.div>
+                    ) : (
+                      <div className="flex-shrink-0 w-[24px] h-[24px] rounded-full bg-white/10 flex items-center justify-center">
+                        <div className="w-[5px] h-[5px] rounded-full bg-orange/60" />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Wide: description */}
+                  {isWide && (
+                    <div className={`text-[12px] leading-[1.4] mt-2 ${isDone ? "text-black/70" : "text-white/45"}`}>
+                      {h.desc}
+                    </div>
+                  )}
+
+                  {/* Bottom: tag (wide) or status (narrow) */}
+                  <div className="mt-4">
+                    {isWide ? (
+                      <span className={`text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-full ${isDone ? "bg-black/10 text-black/60" : "bg-white/6 text-white/40"}`}>
+                        {h.tag}
+                      </span>
+                    ) : (
+                      <span className={`text-[11px] font-semibold ${isDone ? "text-black/50" : "text-white/20"}`}>
+                        {isDone ? "✓ Done" : "Tap to mark"}
+                      </span>
+                    )}
+                  </div>
+                </motion.div>
+              );
+            })
+          )}
+        </div>
       </div>
 
       {/* 4. 100-Day Journey Grid */}
