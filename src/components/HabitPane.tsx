@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useTransition, useCallback, useMemo } from "react";
-import { IconFlame, IconCheck, IconLoader2, IconCalendarStats, IconAward } from "@tabler/icons-react";
+import { IconFlame, IconCheck, IconLoader2 } from "@tabler/icons-react";
 import { getTodayStr } from "@/lib/utils";
 import { motion } from "framer-motion";
 import { getHistory, toggleHabit as toggleHabitAction } from "@/actions";
