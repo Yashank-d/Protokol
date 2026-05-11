@@ -5,10 +5,14 @@ import { getHistory, toggleHabit as toggleHabitAction } from '@/actions';
 export const habitStore = localforage.createInstance({ name: "beast_mode", storeName: "habits" });
 export const syncQueueStore = localforage.createInstance({ name: "beast_mode", storeName: "sync_queue" });
 
-/**
- * Sync Queue Structure:
- * Array of { id: string, type: 'TOGGLE_HABIT', payload: { dateId, habitKey } }
- */
+export interface SyncQueueItem {
+  id: string;
+  type: 'TOGGLE_HABIT';
+  payload: {
+    dateId: string;
+    habitKey: string;
+  };
+}
 
 // Offline-first getHistory
 export async function getOfflineHistory() {
@@ -19,10 +23,9 @@ export async function getOfflineHistory() {
     // 2. Fire and forget fetch from server to update local cache in background
     getHistory().then(async (serverData) => {
       if (serverData && Object.keys(serverData).length > 0) {
-        // Merge server data with local queue if needed, but for simplicity:
         await habitStore.setItem('history', serverData);
       }
-    }).catch(e => console.log('Offline: Could not fetch from server'));
+    }).catch(() => console.log('Offline: Could not fetch from server'));
 
     if (local) return local;
     
@@ -48,10 +51,10 @@ export async function toggleOfflineHabit(dateId: string, habitKey: string) {
   try {
     const res = await toggleHabitAction(dateId, habitKey);
     if (!res.success) throw new Error("Server action returned false");
-  } catch (error) {
+  } catch {
     // 3. If offline/failed, push to sync queue
     console.log("Offline mode: Queuing habit toggle");
-    const queue = await syncQueueStore.getItem<any[]>('queue') || [];
+    const queue = await syncQueueStore.getItem<SyncQueueItem[]>('queue') || [];
     queue.push({
       id: Date.now().toString(),
       type: 'TOGGLE_HABIT',
@@ -63,9 +66,9 @@ export async function toggleOfflineHabit(dateId: string, habitKey: string) {
 
 // Flush Sync Queue (call this periodically or when app becomes visible)
 export async function flushSyncQueue() {
-  if (!navigator.onLine) return; // Don't flush if offline
+  if (typeof window === 'undefined' || !navigator.onLine) return; 
 
-  const queue = await syncQueueStore.getItem<any[]>('queue') || [];
+  const queue = await syncQueueStore.getItem<SyncQueueItem[]>('queue') || [];
   if (queue.length === 0) return;
 
   const newQueue = [...queue];
@@ -79,10 +82,9 @@ export async function flushSyncQueue() {
           newQueue.splice(newQueue.findIndex(q => q.id === item.id), 1);
         }
       }
-      // Weight sync handlers can be added here if needed
-    } catch (e) {
+    } catch {
       console.log('Sync failed for item', item);
-      break; // Stop flushing if one fails (assume offline again)
+      break; // Stop flushing if one fails
     }
   }
 
@@ -109,7 +111,7 @@ export async function getOfflineWeightEntries() {
     const serverData = await serverGetWeight();
     await weightStore.setItem('entries', serverData);
     return serverData;
-  } catch (e) {
+  } catch {
     return [];
   }
 }
@@ -122,8 +124,7 @@ export async function addOfflineWeightEntry(date: string, value: number) {
 
   try {
     await serverAddWeight(date, value);
-  } catch (e) {
-    // Queue logic omitted for brevity in weight
+  } catch {
     console.log("Weight sync failed, queued locally");
   }
 }
@@ -134,7 +135,7 @@ export async function deleteOfflineWeightEntry(id: number) {
   
   try {
     await serverDeleteWeight(id);
-  } catch (e) {
+  } catch {
     console.log("Weight delete failed");
   }
 }

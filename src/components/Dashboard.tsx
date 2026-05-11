@@ -145,7 +145,7 @@ export default function Dashboard() {
         {dateInfo.quote && (
           <div className="mt-4">
             <p className="text-[13px] italic font-medium text-text-muted/80 leading-relaxed pr-8 border-l-2 border-orange/40 pl-3 py-0.5">
-              "{dateInfo.quote}"
+              &quot;{dateInfo.quote}&quot;
             </p>
           </div>
         )}
